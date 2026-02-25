@@ -1,45 +1,69 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Role } from './role.entity';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Role, RoleDocument } from './role.schema';
 import { CreateRoleDto } from '../auth/dto/create-role.dto';
 import { UpdateRoleDto } from '../auth/dto/update-role.dto';
 
 @Injectable()
 export class RolesService {
-  constructor(
-    @InjectRepository(Role)
-    private rolesRepository: Repository<Role>,
-  ) {}
+  constructor(@InjectModel(Role.name) private roleModel: Model<RoleDocument>) {}
 
   // Créer un rôle
   async createRole(createRoleDto: CreateRoleDto): Promise<Role> {
-    const role = this.rolesRepository.create(createRoleDto);
-    return this.rolesRepository.save(role);
+    // Vérifier si le rôle existe déjà
+    const existingRole = await this.roleModel
+      .findOne({ name: createRoleDto.name })
+      .exec();
+    if (existingRole) {
+      throw new BadRequestException(
+        `Role with name '${createRoleDto.name}' already exists`,
+      );
+    }
+
+    const role = new this.roleModel(createRoleDto);
+    return role.save();
   }
 
-  // Lister tous les rôles
+  // Récupérer tous les rôles
   async getAllRoles(): Promise<Role[]> {
-    return this.rolesRepository.find();
+    return this.roleModel.find().exec();
   }
 
-  // Récupérer un rôle par id
+  // Récupérer un rôle par ID
   async getRole(id: string): Promise<Role> {
-    const role = await this.rolesRepository.findOne({ where: { id } });
+    const role = await this.roleModel.findById(id).exec();
     if (!role) throw new NotFoundException(`Role with id ${id} not found`);
     return role;
   }
 
-  // Modifier un rôle
+  // Mettre à jour un rôle
   async updateRole(id: string, updateRoleDto: UpdateRoleDto): Promise<Role> {
-    const role = await this.getRole(id);
-    Object.assign(role, updateRoleDto);
-    return this.rolesRepository.save(role);
+    if (updateRoleDto.name) {
+      const existingRole = await this.roleModel
+        .findOne({ name: updateRoleDto.name })
+        .exec();
+      if (existingRole && existingRole._id.toString() !== id) {
+        throw new BadRequestException(
+          `Role with name '${updateRoleDto.name}' already exists`,
+        );
+      }
+    }
+
+    const role = await this.roleModel
+      .findByIdAndUpdate(id, updateRoleDto, { new: true })
+      .exec();
+    if (!role) throw new NotFoundException(`Role with id ${id} not found`);
+    return role;
   }
 
   // Supprimer un rôle
   async deleteRole(id: string): Promise<void> {
-    const role = await this.getRole(id);
-    await this.rolesRepository.remove(role);
+    const result = await this.roleModel.findByIdAndDelete(id).exec();
+    if (!result) throw new NotFoundException(`Role with id ${id} not found`);
   }
 }

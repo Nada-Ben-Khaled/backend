@@ -10,7 +10,7 @@ import {
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from '../auth/dto/create-role.dto';
 import { UpdateRoleDto } from '../auth/dto/update-role.dto';
-import { Role } from './role.entity';
+import { Role } from './role.schema';
 
 @Controller('roles')
 export class RolesController {

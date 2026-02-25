@@ -1,17 +1,20 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { User } from '../users/users.entity';
-import { Role } from '../roles/role.entity';
+import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
+import { MongooseModule } from '@nestjs/mongoose';
+import { User, UserSchema } from '../users/user.schema';
+import { Role, RoleSchema } from '../roles/role.schema';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Role]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Role.name, schema: RoleSchema },
+    ]),
     JwtModule.register({
-      secret: 'SECRET_KEY', // remplacer par une vraie variable d'environnement
+      secret: 'SECRET_KEY',
       signOptions: { expiresIn: '1h' },
     }),
   ],

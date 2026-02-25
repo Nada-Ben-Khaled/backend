@@ -3,5 +3,5 @@ export class SignUpDto {
   lastName: string;
   email: string;
   password: string;
-  roleId: string; // UUID du rôle
+  roleId: string; // ObjectId MongoDB
 }

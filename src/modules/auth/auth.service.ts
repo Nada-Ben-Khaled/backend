@@ -3,55 +3,50 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '../users/users.entity';
-import { Role } from '../roles/role.entity';
-import { SignUpDto } from '../auth/dto/SignUp.dto ';
+import { User } from '../users/user.schema';
+import { Role } from '../roles/role.schema';
+import { SignUpDto } from '../auth/dto/SignUp.dto';
 import { SignInDto } from '../auth/dto/SignIn.dto';
 import { randomBytes } from 'crypto';
+import * as nodemailer from 'nodemailer';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
-    @InjectRepository(Role)
-    private rolesRepository: Repository<Role>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Role.name) private roleModel: Model<Role>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
-  // 1. Demande de mot de passe oublié
+  // Mot de passe oublié
   async forgotPassword(email: string) {
-    const user = await this.usersRepository.findOne({ where: { email } });
+    const user = await this.userModel.findOne({ email }).exec();
     if (!user) throw new BadRequestException('Email non trouvé');
 
-    // Générer un token aléatoire
     const token = randomBytes(32).toString('hex');
+
     user.resetToken = token;
-    await this.usersRepository.save(user);
+    await user.save();
 
-    // Ici tu enverrais un email à l'utilisateur avec le lien de réinitialisation
-    // Exemple : http://localhost:3000/auth/reset-password?token=<token>
-    console.log(
-      `Lien de réinitialisation : http://localhost:3000/auth/reset-password?token=${token}`,
-    );
+    await this.sendResetEmail(email, token); // 👈 AJOUT
 
-    return { message: 'Lien de réinitialisation envoyé à votre email' };
+    return { message: 'Email de réinitialisation envoyé' };
   }
 
-  // 2. Réinitialiser le mot de passe
+  // Réinitialisation mot de passe
   async resetPassword(token: string, newPassword: string) {
-    const user = await this.usersRepository.findOne({
-      where: { resetToken: token },
-    });
+    const user = await this.userModel.findOne({ resetToken: token }).exec();
     if (!user) throw new BadRequestException('Token invalide');
 
     user.password = await bcrypt.hash(newPassword, 10);
-    user.resetToken = null; // supprimer le token après usage
-    await this.usersRepository.save(user);
+    user.resetToken = null;
+    await user.save();
 
     return { message: 'Mot de passe réinitialisé avec succès' };
   }
@@ -60,40 +55,70 @@ export class AuthService {
   async signUp(signUpDto: SignUpDto): Promise<User> {
     const { email, password, roleId, ...rest } = signUpDto;
 
-    const existingUser = await this.usersRepository.findOne({
-      where: { email },
-    });
+    const existingUser = await this.userModel.findOne({ email }).exec();
     if (existingUser) throw new BadRequestException('Email already exists');
 
-    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    const role = await this.roleModel.findById(roleId).exec();
     if (!role) throw new BadRequestException('Role not found');
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = this.usersRepository.create({
+    const user = new this.userModel({
       ...rest,
       email,
       password: hashedPassword,
-      role,
+      role: role._id,
     });
-    return this.usersRepository.save(user);
+
+    return user.save();
   }
 
   // Sign In
   async signIn(signInDto: SignInDto): Promise<{ accessToken: string }> {
     const { email, password } = signInDto;
-    const user = await this.usersRepository.findOne({
-      where: { email },
-      relations: ['role'],
-    });
+
+    const user = await this.userModel
+      .findOne({ email })
+      .populate('role')
+      .exec();
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       throw new UnauthorizedException('Invalid credentials');
 
-    const payload = { sub: user.id, email: user.email, role: user.role.name };
+    const payload = {
+      sub: user._id,
+      email: user.email,
+      role: user.role['name'],
+    };
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken };
+  }
+
+  private async sendResetEmail(email: string, token: string) {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.configService.get<string>('EMAIL_USER'),
+        pass: this.configService.get<string>('EMAIL_PASS'),
+      },
+    });
+
+    const resetLink = `${this.configService.get<string>(
+      'FRONTEND_URL',
+    )}/reset-password?token=${token}`;
+
+    await transporter.sendMail({
+      from: `"Mediflow" <${this.configService.get<string>('EMAIL_USER')}>`,
+      to: email,
+      subject: 'Réinitialisation du mot de passe',
+      html: `
+      <h3>Réinitialisation du mot de passe</h3>
+      <p>Cliquez sur le lien ci-dessous :</p>
+      <a href="${resetLink}">${resetLink}</a>
+      <p>Ce lien expire bientôt.</p>
+    `,
+    });
   }
 }

@@ -1,14 +1,13 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { User } from '../modules/users/users.entity';
-import { Role } from '../modules/roles/role.entity';
+import { User } from '../modules/users/user.schema';
+import { Role } from '../modules/roles/role.schema';
 
 export const databaseConfig: TypeOrmModuleOptions = {
-  type: 'postgres',
+  type: 'mongodb',
   host: 'localhost',
-  port: 5432,
-  username: 'postgres',
-  password: 'medi',
+  port: 27017,
   database: 'mediflow',
   entities: [User, Role],
   synchronize: true,
+  logging: true,
 };

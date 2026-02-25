@@ -1,23 +1,29 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm'; // AJOUTER CET IMPORT
+import { MongooseModule } from '@nestjs/mongoose';
 
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-
-import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
-
-import { databaseConfig } from './config/database.config';
+import { AuthModule } from './modules/auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
+import { User, UserSchema } from './modules/users/user.schema';
+import { Role, RoleSchema } from './modules/roles/role.schema';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(databaseConfig),
-    AuthModule,
+     ConfigModule.forRoot({ isGlobal: true }),
+    // Connexion à MongoDB
+    MongooseModule.forRoot('mongodb://localhost:27017/mediflow'),
+
+    // Déclaration des modèles pour Mongoose
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Role.name, schema: RoleSchema },
+    ]),
+
+    // Modules applicatifs
     UsersModule,
     RolesModule,
+    AuthModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
