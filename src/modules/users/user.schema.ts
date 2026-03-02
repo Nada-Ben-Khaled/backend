@@ -6,6 +6,9 @@ export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
+  @Prop({ required: true, unique: true })
+  userId: string; // e.g. mediflow1, mediflow2 (never reused after delete)
+
   @Prop({ required: true })
   firstName: string;
 
@@ -57,3 +60,20 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Computed age from dateOfBirth (in years)
+UserSchema.virtual('age').get(function (this: UserDocument) {
+  const dob = this.dateOfBirth;
+  if (!dob) return undefined;
+  const today = new Date();
+  const birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+});
+
+UserSchema.set('toJSON', { virtuals: true });
+UserSchema.set('toObject', { virtuals: true });

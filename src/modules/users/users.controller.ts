@@ -1,11 +1,13 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Put,
-  Delete,
-  Param,
-  Body,
+  Req,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from '../auth/dto/create-user.dto';
@@ -42,5 +44,15 @@ export class UsersController {
   @Delete(':id')
   remove(@Param('id') id: string): Promise<void> {
     return this.usersService.deleteUser(id);
+  }
+
+  @Post(':id/avatar')
+  uploadAvatar(@Param('id') id: string, @Req() req: any): Promise<User> {
+    const files = (req.files as { path: string; filename: string }[]) ?? [];
+    const file = files[0];
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    return this.usersService.updateUserAvatar(id, file);
   }
 }

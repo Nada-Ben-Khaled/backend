@@ -9,8 +9,10 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../users/user.schema';
 import { Role } from '../roles/role.schema';
+import { UsersService } from '../users/users.service';
 import { SignUpDto } from '../auth/dto/SignUp.dto';
 import { SignInDto } from '../auth/dto/SignIn.dto';
+import { CreateUserDto } from '../auth/dto/create-user.dto';
 import { randomBytes } from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +22,7 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Role.name) private roleModel: Model<Role>,
+    private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -51,25 +54,9 @@ export class AuthService {
     return { message: 'Mot de passe réinitialisé avec succès' };
   }
 
-  // Sign Up
+  // Sign Up (uses UsersService so new user gets userId mediflow1, mediflow2, ...)
   async signUp(signUpDto: SignUpDto): Promise<User> {
-    const { email, password, roleId, ...rest } = signUpDto;
-
-    const existingUser = await this.userModel.findOne({ email }).exec();
-    if (existingUser) throw new BadRequestException('Email already exists');
-
-    const role = await this.roleModel.findById(roleId).exec();
-    if (!role) throw new BadRequestException('Role not found');
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new this.userModel({
-      ...rest,
-      email,
-      password: hashedPassword,
-      role: role._id,
-    });
-
-    return user.save();
+    return this.usersService.createUser(signUpDto as CreateUserDto);
   }
 
   // Sign In
@@ -87,7 +74,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
 
     const payload = {
-      sub: user._id,
+      sub: (user as { userId?: string }).userId ?? user._id,
       email: user.email,
       role: user.role['name'],
     };
