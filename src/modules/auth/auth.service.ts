@@ -56,6 +56,10 @@ export class AuthService {
 
   // Sign Up (uses UsersService so new user gets userId mediflow1, mediflow2, ...)
   async signUp(signUpDto: SignUpDto): Promise<User> {
+    const existingUser = await this.userModel.findOne({ email: signUpDto.email }).exec();
+    if (existingUser) {
+      throw new BadRequestException('Email already exists');
+    }
     return this.usersService.createUser(signUpDto as CreateUserDto);
   }
 

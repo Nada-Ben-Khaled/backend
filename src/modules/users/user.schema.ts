@@ -6,6 +6,7 @@ export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
+  // _id is kept by Mongoose in DB but not used in the API; only userId is used
   @Prop({ required: true, unique: true })
   userId: string; // e.g. mediflow1, mediflow2 (never reused after delete)
 
@@ -61,19 +62,26 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Computed age from dateOfBirth (in years)
-UserSchema.virtual('age').get(function (this: UserDocument) {
-  const dob = this.dateOfBirth;
-  if (!dob) return undefined;
-  const today = new Date();
-  const birth = new Date(dob);
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
+// Keep _id in DB (Mongoose default) but use only userId in the API: hide _id from responses
+UserSchema.set('toJSON', {
+  virtuals: true,
+  transform: (_doc, ret) => {
+    const o = ret as unknown as Record<string, unknown>;
+    delete o._id;
+    delete o.__v;
+    delete o.password;
+    delete o.resetToken;
+    return ret;
+  },
 });
-
-UserSchema.set('toJSON', { virtuals: true });
-UserSchema.set('toObject', { virtuals: true });
+UserSchema.set('toObject', {
+  virtuals: true,
+  transform: (_doc, ret) => {
+    const o = ret as unknown as Record<string, unknown>;
+    delete o._id;
+    delete o.__v;
+    delete o.password;
+    delete o.resetToken;
+    return ret;
+  },
+});

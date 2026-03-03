@@ -55,7 +55,7 @@ export class RolesService {
     }
 
     const role = await this.roleModel
-      .findByIdAndUpdate(id, updateRoleDto, { new: true })
+      .findByIdAndUpdate(id, updateRoleDto, { returnDocument: 'after' })
       .exec();
     if (!role) throw new NotFoundException(`Role with id ${id} not found`);
     return role;
